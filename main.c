@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include "expressao.h"
 
 int main() {
@@ -9,52 +10,76 @@ int main() {
 
     while (1) {
         printf("\n==== MENU ====\n");
-        printf("1 - Converter expressao infixada -> pós-fixada\n");
-        printf("2 - Converter expressao pos-fixada -> infixada\n");
+        printf("1 - Traduzir expressao infixada -> pos-fixada\n");
+        printf("2 - Traduzir expressao pos-fixada -> infixada\n");
         printf("3 - Avaliar expressao infixada\n");
         printf("4 - Avaliar expressao pos-fixada\n");
         printf("0 - Sair\n");
-        printf("Escolha uma opção: ");
-        scanf("%d", &opcao);
-        getchar(); // Limpa o \n do buffer
+        printf("Escolha uma opcao: ");
+
+        char buffer[10];
+        fgets(buffer, sizeof(buffer), stdin);
+        sscanf(buffer, "%d", &opcao);
 
         switch (opcao) {
             case 1:
-                printf("Digite a expressão infixada (use espaços entre os elementos):\n> ");
+                printf("Digite a expressao infixada:\n> ");
                 fgets(entrada, sizeof(entrada), stdin);
-                entrada[strcspn(entrada, "\n")] = '\0'; // Remove o \n do final
-                printf("Expressão pós-fixada: %s\n", getFormaPosFixa(entrada));
+                entrada[strcspn(entrada, "\n")] = '\0';
+                
+                char *posFixa = getFormaPosFixa(entrada);
+                if (posFixa == NULL) {
+                    printf("Nao foi possivel traduzir a expressao.\n");
+                } else {
+                    printf("Expressao pos-fixada: %s\n", posFixa);
+                }
                 break;
 
             case 2:
-                printf("Digite a expressão pós-fixada:\n> ");
+                printf("Digite a expressao pos-fixada:\n> ");
                 fgets(entrada, sizeof(entrada), stdin);
                 entrada[strcspn(entrada, "\n")] = '\0';
-                printf("Expressão infixada: %s\n", getFormaInFixa(entrada));
+
+                char *inFixa = getFormaInFixa(entrada);
+                if (inFixa == NULL) {
+                    printf("Nao foi possivel traduzir a expressao.\n");
+                } else {
+                    printf("Expressao infixada: %s\n", inFixa);
+                }
                 break;
 
             case 3:
-                printf("Digite a expressão infixada:\n> ");
+                printf("Digite a expressao infixada:\n> ");
                 fgets(entrada, sizeof(entrada), stdin);
                 entrada[strcspn(entrada, "\n")] = '\0';
-                printf("Expressão pós-fixada: %s\n", getFormaPosFixa(entrada));
-                printf("Resultado: %.6f\n", getValorInFixa(entrada));
+                
+                float resultadoInfixa = getValorInFixa(entrada);
+                if (isnan(resultadoInfixa) || isinf(resultadoInfixa)) {
+                    printf("Nao foi possivel calcular o valor da expressao.\n");
+                } else {
+                    printf("Resultado: %f\n", resultadoInfixa);
+                }
                 break;
 
             case 4:
-                printf("Digite a expressão pós-fixada:\n> ");
+                printf("Digite a expressao pos-fixada:\n> ");
                 fgets(entrada, sizeof(entrada), stdin);
                 entrada[strcspn(entrada, "\n")] = '\0';
-                printf("Expressão infixada: %s\n", getFormaInFixa(entrada));
-                printf("Resultado: %.6f\n", getValorPosFixa(entrada));
-                break; 
+
+                float resultadoPosfixa = getValorPosFixa(entrada);
+                if (isnan(resultadoPosfixa) || isinf(resultadoPosfixa)) {
+                    printf("Nao foi possivel calcular o valor da expressao.\n");
+                } else {
+                    printf("Resultado: %f\n", resultadoPosfixa);
+                }
+                break;
 
             case 0:
                 printf("Encerrando o programa.\n");
                 return 0;
 
             default:
-                printf("Opção inválida. Tente novamente.\n");
+                printf("Opcao invalida. Tente novamente.\n");
         }
     }
 

@@ -62,11 +62,11 @@ int ehOperador(char *token) {
 }
 
 //==================================================================
-// FUNÇÕES PRINCIPAIS
+// FUNÇÕES PRINCIPAIS COM VALIDAÇÃO COMPLETA
 //==================================================================
 
 /**
- * Converte Infixa para Pós-fixa (SUA NOVA VERSÃO INTEGRADA).
+ * Converte Infixa para Pós-fixa, com validação de erros.
  */
 char *getFormaPosFixa(char *Str) {
     static char saida[MAX] = "";
@@ -96,10 +96,13 @@ char *getFormaPosFixa(char *Str) {
                 token[j++] = Str[i++];
             }
             token[j] = '\0';
+            if(strcmp(token, "sen") != 0 && strcmp(token, "cos") != 0 && strcmp(token, "tg") != 0 && strcmp(token, "log") != 0 && strcmp(token, "raiz") != 0) {
+                printf("ERRO: Funcao desconhecida: '%s'\n", token);
+                return NULL;
+            }
             pushStr(&pilha, token);
         } else if (Str[i] == '(') {
-            token[0] = '(';
-            token[1] = '\0';
+            token[0] = '('; token[1] = '\0';
             pushStr(&pilha, token);
             i++;
         } else if (Str[i] == ')') {
@@ -107,12 +110,18 @@ char *getFormaPosFixa(char *Str) {
                 strcat(saida, popStr(&pilha));
                 strcat(saida, " ");
             }
-            if (!isEmptyStr(&pilha)) popStr(&pilha); // remove '('
+            if (isEmptyStr(&pilha)) {
+                printf("ERRO: Parentese de fechamento ')' sem um par de abertura correspondente.\n");
+                return NULL;
+            }
+            popStr(&pilha); // remove '('
             i++;
         } else { // Operador
-            token[0] = Str[i];
-            token[1] = '\0';
-            // Adicionada a verificação de parênteses para segurança
+            token[0] = Str[i]; token[1] = '\0';
+            if (!ehOperador(token)) {
+                printf("ERRO: Operador ou caractere invalido: '%s'\n", token);
+                return NULL;
+            }
             while (!isEmptyStr(&pilha) && strcmp(peekStr(&pilha), "(") != 0 && prioridade(peekStr(&pilha)) >= prioridade(token)) {
                 strcat(saida, popStr(&pilha));
                 strcat(saida, " ");
@@ -123,7 +132,12 @@ char *getFormaPosFixa(char *Str) {
     }
 
     while (!isEmptyStr(&pilha)) {
-        strcat(saida, popStr(&pilha));
+        char *op = popStr(&pilha);
+        if (strcmp(op, "(") == 0) {
+            printf("ERRO: Parentese de abertura '(' sem um par de fechamento correspondente.\n");
+            return NULL;
+        }
+        strcat(saida, op);
         strcat(saida, " ");
     }
 
@@ -135,7 +149,7 @@ char *getFormaPosFixa(char *Str) {
 }
 
 /**
- * Converte Pós-fixa para Infixa.
+ * Converte Pós-fixa para Infixa, com validação completa de erros.
  */
 char *getFormaInFixa(char *StrPosFixa) {
     static char inFixaResult[MAX];
@@ -147,28 +161,56 @@ char *getFormaInFixa(char *StrPosFixa) {
     char *token = strtok(strCpy, " ");
 
     while (token != NULL) {
-        if (!ehOperador(token)) {
+        // --- NOVA LÓGICA DE VALIDAÇÃO ---
+        // Verifica se o token é um número válido ou um operador conhecido.
+        if (isdigit(token[0]) || (token[0] == '-' && isdigit(token[1]))) {
+            // É um número, empilha.
             pushStr(&pilha, token);
-        } else {
+        } else if (ehOperador(token)) {
+            // É um operador, processa a conversão.
             char op2[MAX], op1[MAX], temp[MAX];
+            if (isEmptyStr(&pilha)) {
+                printf("ERRO: Expressao pos-fixa malformada. Operador '%s' sem operandos.\n", token);
+                return NULL;
+            }
             strcpy(op2, popStr(&pilha));
 
             if (strcmp(token, "sen") == 0 || strcmp(token, "cos") == 0 || strcmp(token, "tg") == 0 || strcmp(token, "log") == 0 || strcmp(token, "raiz") == 0) {
                  sprintf(temp, "%s(%s)", token, op2);
             } else {
+                if (isEmptyStr(&pilha)) {
+                    printf("ERRO: Expressao pos-fixa malformada. Operador '%s' sem operandos suficientes.\n", token);
+                    return NULL;
+                }
                 strcpy(op1, popStr(&pilha));
                 sprintf(temp, "(%s %s %s)", op1, token, op2);
             }
             pushStr(&pilha, temp);
+        } else {
+            // Se não for nem número nem operador, é um erro.
+            printf("ERRO: Token invalido na expressao pos-fixa: '%s'\n", token);
+            return NULL;
         }
         token = strtok(NULL, " ");
     }
+    
     strcpy(inFixaResult, popStr(&pilha));
+    if(!isEmptyStr(&pilha)) {
+        printf("ERRO: Expressao pos-fixa malformada. Sobraram operandos.\n");
+        return NULL;
+    }
+    
+    int len = strlen(inFixaResult);
+    if (len > 1 && inFixaResult[0] == '(' && inFixaResult[len - 1] == ')') {
+        memmove(inFixaResult, inFixaResult + 1, len - 2);
+        inFixaResult[len - 2] = '\0';
+    }
+
     return inFixaResult;
 }
 
 /**
- * Calcula o valor de uma expressão Pós-fixa.
+ * Calcula o valor de uma expressão Pós-fixa, com tratamento de erros.
  */
 float getValorPosFixa(char *StrPosFixa) {
     PilhaFloat pilha;
@@ -183,19 +225,41 @@ float getValorPosFixa(char *StrPosFixa) {
             pushFloat(&pilha, atof(token));
         } else {
             float val2, val1;
+            if(isEmptyFloat(&pilha)) {
+                printf("ERRO: Expressao malformada. Operador '%s' sem operandos suficientes.\n", token);
+                return NAN;
+            }
             val2 = popFloat(&pilha);
 
-            if (strcmp(token, "+") == 0) { val1 = popFloat(&pilha); pushFloat(&pilha, val1 + val2); }
-            else if (strcmp(token, "-") == 0) { val1 = popFloat(&pilha); pushFloat(&pilha, val1 - val2); }
-            else if (strcmp(token, "*") == 0) { val1 = popFloat(&pilha); pushFloat(&pilha, val1 * val2); }
-            else if (strcmp(token, "/") == 0) { val1 = popFloat(&pilha); pushFloat(&pilha, val1 / val2); }
-            else if (strcmp(token, "%") == 0) { val1 = popFloat(&pilha); pushFloat(&pilha, fmod(val1, val2)); }
-            else if (strcmp(token, "^") == 0) { val1 = popFloat(&pilha); pushFloat(&pilha, pow(val1, val2)); }
+            if (strcmp(token, "+") == 0 || strcmp(token, "-") == 0 || strcmp(token, "*") == 0 || 
+                strcmp(token, "/") == 0 || strcmp(token, "%") == 0 || strcmp(token, "^") == 0) {
+                if(isEmptyFloat(&pilha)) {
+                     printf("ERRO: Expressao malformada. Operador '%s' sem operandos suficientes.\n", token);
+                     return NAN;
+                }
+                val1 = popFloat(&pilha);
+
+                if (strcmp(token, "+") == 0) { pushFloat(&pilha, val1 + val2); }
+                else if (strcmp(token, "-") == 0) { pushFloat(&pilha, val1 - val2); }
+                else if (strcmp(token, "*") == 0) { pushFloat(&pilha, val1 * val2); }
+                else if (strcmp(token, "^") == 0) { pushFloat(&pilha, pow(val1, val2)); }
+                else if (strcmp(token, "/") == 0) {
+                    if (val2 == 0) { printf("ERRO: Divisao por zero.\n"); return NAN; }
+                    pushFloat(&pilha, val1 / val2);
+                } else if (strcmp(token, "%") == 0) {
+                    if ((int)val2 == 0) { printf("ERRO: Modulo por zero.\n"); return NAN; }
+                    pushFloat(&pilha, fmod(val1, val2));
+                }
+            }
             else if (strcmp(token, "log") == 0) { pushFloat(&pilha, log10(val2)); }
             else if (strcmp(token, "raiz") == 0) { pushFloat(&pilha, sqrt(val2)); }
             else if (strcmp(token, "sen") == 0) { double rad = val2 * M_PI / 180.0; pushFloat(&pilha, sin(rad)); }
             else if (strcmp(token, "cos") == 0) { double rad = val2 * M_PI / 180.0; pushFloat(&pilha, cos(rad)); }
             else if (strcmp(token, "tg") == 0) { double rad = val2 * M_PI / 180.0; pushFloat(&pilha, tan(rad)); }
+            else {
+                printf("ERRO: Funcao ou operador desconhecido: '%s'\n", token);
+                return NAN;
+            }
         }
         token = strtok(NULL, " ");
     }
@@ -203,9 +267,13 @@ float getValorPosFixa(char *StrPosFixa) {
 }
 
 /**
- * Calcula o valor de uma expressão Infixa.
+ * Calcula o valor de uma expressão Infixa, com tratamento de erros.
  */
 float getValorInFixa(char *StrInFixa) {
     char *posFixa = getFormaPosFixa(StrInFixa);
+    // Se a conversão falhar (retornar NULL), propaga o erro como NAN
+    if (posFixa == NULL) {
+        return NAN;
+    }
     return getValorPosFixa(posFixa);
 }
