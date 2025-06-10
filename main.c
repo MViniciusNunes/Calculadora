@@ -5,7 +5,7 @@
 #include "expressao.h"
 
 int main() {
-    int opcao;
+    int opcao = -1; // Inicializa com um valor inválido
     char entrada[512];
 
     while (1) {
@@ -17,9 +17,18 @@ int main() {
         printf("0 - Sair\n");
         printf("Escolha uma opcao: ");
 
-        char buffer[10];
+        // --- LÓGICA DE VALIDAÇÃO DE ENTRADA DO MENU ---
+        char buffer[512];
+        char char_extra;
         fgets(buffer, sizeof(buffer), stdin);
-        sscanf(buffer, "%d", &opcao);
+
+        // Tenta ler um inteiro e verifica se há algo a mais na linha.
+        // A entrada só é válida se sscanf conseguir ler EXATAMENTE 1 item (o número).
+        if (sscanf(buffer, "%d %c", &opcao, &char_extra) != 1) {
+            opcao = -1; // Define como inválida se houver lixo ou se não for um número.
+        }
+        
+        //------------------------------------------------
 
         switch (opcao) {
             case 1:
@@ -29,7 +38,7 @@ int main() {
                 
                 char *posFixa = getFormaPosFixa(entrada);
                 if (posFixa == NULL) {
-                    printf("Nao foi possivel traduzir a expressao.\n");
+                    printf(">> ERRO: Nao foi possivel traduzir a expressao.\n");
                 } else {
                     printf("Expressao pos-fixada: %s\n", posFixa);
                 }
@@ -42,7 +51,7 @@ int main() {
 
                 char *inFixa = getFormaInFixa(entrada);
                 if (inFixa == NULL) {
-                    printf("Nao foi possivel traduzir a expressao.\n");
+                    printf(">> ERRO: Nao foi possivel traduzir a expressao.\n");
                 } else {
                     printf("Expressao infixada: %s\n", inFixa);
                 }
@@ -55,7 +64,7 @@ int main() {
                 
                 float resultadoInfixa = getValorInFixa(entrada);
                 if (isnan(resultadoInfixa) || isinf(resultadoInfixa)) {
-                    printf("Nao foi possivel calcular o valor da expressao.\n");
+                    printf(">> ERRO: Nao foi possivel calcular o valor da expressao.\n");
                 } else {
                     printf("Resultado: %f\n", resultadoInfixa);
                 }
@@ -68,7 +77,7 @@ int main() {
 
                 float resultadoPosfixa = getValorPosFixa(entrada);
                 if (isnan(resultadoPosfixa) || isinf(resultadoPosfixa)) {
-                    printf("Nao foi possivel calcular o valor da expressao.\n");
+                    printf(">> ERRO: Nao foi possivel calcular o valor da expressao.\n");
                 } else {
                     printf("Resultado: %f\n", resultadoPosfixa);
                 }
