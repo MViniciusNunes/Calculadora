@@ -9,10 +9,10 @@ int main() {
 
     while (1) {
         printf("\n==== MENU ====\n");
-        printf("1 - Traduzir expressão infixada -> pós-fixada\n");
-        printf("2 - Traduzir expressão pós-fixada -> infixada\n");
-        printf("3 - Avaliar expressão infixada\n");
-        printf("4 - Avaliar expressão pós-fixada\n");
+        printf("1 - Converter expressao infixada -> pós-fixada\n");
+        printf("2 - Converter expressao pos-fixada -> infixada\n");
+        printf("3 - Avaliar expressao infixada\n");
+        printf("4 - Avaliar expressao pos-fixada\n");
         printf("0 - Sair\n");
         printf("Escolha uma opção: ");
         scanf("%d", &opcao);
@@ -47,7 +47,7 @@ int main() {
                 entrada[strcspn(entrada, "\n")] = '\0';
                 printf("Expressão infixada: %s\n", getFormaInFixa(entrada));
                 printf("Resultado: %.6f\n", getValorPosFixa(entrada));
-                break;
+                break; 
 
             case 0:
                 printf("Encerrando o programa.\n");

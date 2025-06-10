@@ -1,328 +1,211 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>  // já deve estar, pois usa sin/cos/etc
-
-#define M_PI 3.14159265358979323846
-
-// Função interna (privada) para conversão de graus para radianos
-static float grausParaRadianos(float graus) {
-    return graus * M_PI / 180.0;
-}
-
+#include <ctype.h>
+#include <math.h>
 #include "expressao.h"
 
-// Definição da pilha de strings para getFormaInFixa
-typedef struct NodeInfixa {
-    char *expr;
-    struct NodeInfixa *next;
-} NodeInfixa;
+#define MAX 512
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+//==================================================================
+// ESTRUTURAS DE PILHA
+//==================================================================
+
+// --- Pilha de Strings (Para conversões de notação) ---
 typedef struct {
-    NodeInfixa *top;
-} PilhaInfixa;
+    char itens[MAX][MAX];
+    int topo;
+} PilhaStr;
 
-PilhaInfixa *criarPilhaInfixa() {
-    PilhaInfixa *p = (PilhaInfixa *)malloc(sizeof(PilhaInfixa));
-    p->top = NULL;
-    return p;
-}
+void initPilhaStr(PilhaStr *p) { p->topo = -1; }
+int isEmptyStr(PilhaStr *p) { return p->topo == -1; }
+void pushStr(PilhaStr *p, char *val) { if (p->topo < MAX - 1) strcpy(p->itens[++(p->topo)], val); }
+char* popStr(PilhaStr *p) { return !isEmptyStr(p) ? p->itens[(p->topo)--] : NULL; }
+char* peekStr(PilhaStr *p) { return !isEmptyStr(p) ? p->itens[p->topo] : NULL; }
 
-void empilharInfixa(PilhaInfixa *p, char *expr) {
-    NodeInfixa *n = (NodeInfixa *)malloc(sizeof(NodeInfixa));
-    n->expr = expr;
-    n->next = p->top;
-    p->top = n;
-}
-
-char *desempilharInfixa(PilhaInfixa *p) {
-    if (!p->top) return NULL;
-    NodeInfixa *n = p->top;
-    char *expr = n->expr;
-    p->top = n->next;
-    free(n);
-    return expr;
-}
-
-int ehNumeroInfixa(char *token) {
-    char *endptr;
-    strtod(token, &endptr);
-    return endptr != token && *endptr == '\0';
-}
-
-int ehOperadorInfixa(char *token) {
-    return strlen(token) == 1 && strchr("+-*/^", token[0]);
-}
-
-int ehFuncaoInfixa(char *token) {
-    // Exemplo: sin, cos, log, etc.
-    return (strcmp(token, "sin") == 0 || strcmp(token, "cos") == 0 ||
-            strcmp(token, "tan") == 0 || strcmp(token, "log") == 0 ||
-            strcmp(token, "sqrt") == 0);
-}
-
-// Retorna a forma inFixa de Str (posFixa)
-char *getFormaInFixa(char *Str) {
-    PilhaInfixa *pilha = criarPilhaInfixa();
-    char *tokens = strdup(Str);
-    char *token = strtok(tokens, " ");
-
-    while (token) {
-        if (ehNumeroInfixa(token)) {
-            empilharInfixa(pilha, strdup(token));
-        } else if (ehOperadorInfixa(token)) {
-            // Binário: desempilha 2
-            char *b = desempilharInfixa(pilha);
-            char *a = desempilharInfixa(pilha);
-            int len = strlen(a) + strlen(b) + 5;
-            char *expr = (char *)malloc(len);
-            snprintf(expr, len, "(%s %s %s)", a, token, b);
-            free(a); free(b);
-            empilharInfixa(pilha, expr);
-        } else if (ehFuncaoInfixa(token)) {
-            // Unário: desempilha 1
-            char *x = desempilharInfixa(pilha);
-            int len = strlen(token) + strlen(x) + 4;
-            char *expr = (char *)malloc(len);
-            snprintf(expr, len, "%s(%s)", token, x);
-            free(x);
-            empilharInfixa(pilha, expr);
-        }
-        token = strtok(NULL, " ");
-    }
-    free(tokens);
-
-    char *resultado = desempilharInfixa(pilha);
-    // Liberar pilha
-    free(pilha);
-    return resultado;
-}
-
-// Definição da pilha de strings (ponteiros para char*)
-typedef struct Node {
-    char *op;
-    struct Node *next;
-} Node;
-
+// --- Pilha de Floats (Para cálculo de valores) ---
 typedef struct {
-    Node *top;
-} Pilha;
+    float itens[MAX];
+    int topo;
+} PilhaFloat;
 
-Pilha *criarPilha() {
-    Pilha *p = (Pilha *)malloc(sizeof(Pilha));
-    p->top = NULL;
-    return p;
-}
+void initPilhaFloat(PilhaFloat *p) { p->topo = -1; }
+int isEmptyFloat(PilhaFloat *p) { return p->topo == -1; }
+void pushFloat(PilhaFloat *p, float val) { if (p->topo < MAX - 1) p->itens[++(p->topo)] = val; }
+float popFloat(PilhaFloat *p) { return !isEmptyFloat(p) ? p->itens[(p->topo)--] : 0.0; }
 
-void empilhar(Pilha *p, char *op) {
-    Node *n = (Node *)malloc(sizeof(Node));
-    n->op = op;
-    n->next = p->top;
-    p->top = n;
-}
 
-char *desempilhar(Pilha *p) {
-    if (!p->top) return NULL;
-    Node *n = p->top;
-    char *op = n->op;
-    p->top = n->next;
-    free(n);
-    return op;
-}
+//==================================================================
+// FUNÇÕES AUXILIARES
+//==================================================================
 
-char *topo(Pilha *p) {
-    if (!p->top) return NULL;
-    return p->top->op;
-}
-
-int ehNumero(char *token) {
-    char *endptr;
-    strtod(token, &endptr);
-    return endptr != token && *endptr == '\0';
+int prioridade(char *op) {
+    if (strcmp(op, "sen") == 0 || strcmp(op, "cos") == 0 || strcmp(op, "tg") == 0 ||
+        strcmp(op, "log") == 0 || strcmp(op, "raiz") == 0) return 4;
+    if (strcmp(op, "^") == 0) return 3;
+    if (strcmp(op, "*") == 0 || strcmp(op, "/") == 0 || strcmp(op, "%") == 0) return 2;
+    if (strcmp(op, "+") == 0 || strcmp(op, "-") == 0) return 1;
+    return 0; // Para parênteses
 }
 
 int ehOperador(char *token) {
-    return strlen(token) == 1 && strchr("+-*/^", token[0]);
+    return strcmp(token, "+") == 0 || strcmp(token, "-") == 0 ||
+           strcmp(token, "*") == 0 || strcmp(token, "/") == 0 ||
+           strcmp(token, "%") == 0 || strcmp(token, "^") == 0 ||
+           strcmp(token, "log") == 0 || strcmp(token, "sen") == 0 ||
+           strcmp(token, "cos") == 0 || strcmp(token, "tg") == 0 ||
+           strcmp(token, "raiz") == 0;
 }
 
-int ehFuncao(char *token) {
-    return (strcmp(token, "sin") == 0 || strcmp(token, "cos") == 0 ||
-            strcmp(token, "tan") == 0 || strcmp(token, "log") == 0 ||
-            strcmp(token, "sqrt") == 0);
-}
+//==================================================================
+// FUNÇÕES PRINCIPAIS
+//==================================================================
 
-int precedencia(char op) {
-    switch (op) {
-        case '+':
-        case '-': return 1;
-        case '*':
-        case '/': return 2;
-        case '^': return 3;
-        default: return 0;
-    }
-}
-
-// Retorna a forma posFixa de Str (inFixa)
+/**
+ * Converte Infixa para Pós-fixa (SUA NOVA VERSÃO INTEGRADA).
+ */
 char *getFormaPosFixa(char *Str) {
-    // Começa a conversão
-    Pilha *pilha = criarPilha();
-    char *saida = (char *)malloc(1024); // Tamanho fixo para simplificar
+    static char saida[MAX] = "";
+    PilhaStr pilha;
+    initPilhaStr(&pilha);
     saida[0] = '\0';
 
-    char *tokens = strdup(Str);
-    char *token = strtok(tokens, " ");
+    char token[MAX];
+    int i = 0;
+    while (Str[i] != '\0') {
+        if (isspace(Str[i])) {
+            i++;
+            continue;
+        }
 
-    while (token) {
-        if (ehNumero(token)) {
+        if (isdigit(Str[i]) || Str[i] == '.') {
+            int j = 0;
+            while (isdigit(Str[i]) || Str[i] == '.') {
+                token[j++] = Str[i++];
+            }
+            token[j] = '\0';
             strcat(saida, token);
             strcat(saida, " ");
-        } else if (ehFuncao(token)) {
-            empilhar(pilha, strdup(token));
-        } else if (ehOperador(token)) {
-            while (topo(pilha) && 
-                   (ehOperador(topo(pilha)) || ehFuncao(topo(pilha))) &&
-                   ((ehFuncao(topo(pilha))) ||
-                    (precedencia(topo(pilha)[0]) > precedencia(token[0])) ||
-                    (precedencia(topo(pilha)[0]) == precedencia(token[0]) && token[0] != '^'))) {
-                strcat(saida, desempilhar(pilha));
+        } else if (isalpha(Str[i])) {
+            int j = 0;
+            while (isalpha(Str[i])) {
+                token[j++] = Str[i++];
+            }
+            token[j] = '\0';
+            pushStr(&pilha, token);
+        } else if (Str[i] == '(') {
+            token[0] = '(';
+            token[1] = '\0';
+            pushStr(&pilha, token);
+            i++;
+        } else if (Str[i] == ')') {
+            while (!isEmptyStr(&pilha) && strcmp(peekStr(&pilha), "(") != 0) {
+                strcat(saida, popStr(&pilha));
                 strcat(saida, " ");
             }
-            empilhar(pilha, strdup(token));
-        } else if (strcmp(token, "(") == 0) {
-            empilhar(pilha, strdup(token));
-        } else if (strcmp(token, ")") == 0) {
-            while (topo(pilha) && strcmp(topo(pilha), "(") != 0) {
-                strcat(saida, desempilhar(pilha));
+            if (!isEmptyStr(&pilha)) popStr(&pilha); // remove '('
+            i++;
+        } else { // Operador
+            token[0] = Str[i];
+            token[1] = '\0';
+            // Adicionada a verificação de parênteses para segurança
+            while (!isEmptyStr(&pilha) && strcmp(peekStr(&pilha), "(") != 0 && prioridade(peekStr(&pilha)) >= prioridade(token)) {
+                strcat(saida, popStr(&pilha));
                 strcat(saida, " ");
             }
-            if (topo(pilha) && strcmp(topo(pilha), "(") == 0) {
-                free(desempilhar(pilha)); // Remove "("
-            }
-            // Se topo for função, desempilha também
-            if (topo(pilha) && ehFuncao(topo(pilha))) {
-                strcat(saida, desempilhar(pilha));
-                strcat(saida, " ");
-            }
+            pushStr(&pilha, token);
+            i++;
         }
-        token = strtok(NULL, " ");
     }
 
-    // Desempilha o que sobrou
-    while (topo(pilha)) {
-        strcat(saida, desempilhar(pilha));
+    while (!isEmptyStr(&pilha)) {
+        strcat(saida, popStr(&pilha));
         strcat(saida, " ");
     }
 
-    // Remove espaço final
     int len = strlen(saida);
-    if (len > 0 && saida[len-1] == ' ')
-        saida[len-1] = '\0';
+    if (len > 0 && saida[len - 1] == ' ')
+        saida[len - 1] = '\0';
 
-    free(tokens);
-    free(pilha);
     return saida;
 }
-// Pilha de floats
-typedef struct NodeFloat {
-    float val;
-    struct NodeFloat *next;
-} NodeFloat;
 
-typedef struct {
-    NodeFloat *top;
-} PilhaFloat;
+/**
+ * Converte Pós-fixa para Infixa.
+ */
+char *getFormaInFixa(char *StrPosFixa) {
+    static char inFixaResult[MAX];
+    PilhaStr pilha;
+    initPilhaStr(&pilha);
 
-PilhaFloat *criarPilhaFloat() {
-    PilhaFloat *p = (PilhaFloat *)malloc(sizeof(PilhaFloat));
-    p->top = NULL;
-    return p;
-}
+    char strCpy[MAX];
+    strcpy(strCpy, StrPosFixa);
+    char *token = strtok(strCpy, " ");
 
-void empilharFloat(PilhaFloat *p, float val) {
-    NodeFloat *n = (NodeFloat *)malloc(sizeof(NodeFloat));
-    n->val = val;
-    n->next = p->top;
-    p->top = n;
-}
+    while (token != NULL) {
+        if (!ehOperador(token)) {
+            pushStr(&pilha, token);
+        } else {
+            char op2[MAX], op1[MAX], temp[MAX];
+            strcpy(op2, popStr(&pilha));
 
-float desempilharFloat(PilhaFloat *p) {
-    if (!p->top) return 0.0f;
-    NodeFloat *n = p->top;
-    float val = n->val;
-    p->top = n->next;
-    free(n);
-    return val;
-}
-
-int ehNumeroFloat(char *token) {
-    char *endptr;
-    strtod(token, &endptr);
-    return endptr != token && *endptr == '\0';
-}
-
-int ehOperadorFloat(char *token) {
-    return strlen(token) == 1 && strchr("+-*/^", token[0]);
-}
-
-int ehFuncaoFloat(char *token) {
-    return (strcmp(token, "sen") == 0 || strcmp(token, "cos") == 0 ||
-            strcmp(token, "tg")  == 0 || strcmp(token, "log") == 0 ||
-            strcmp(token, "sqrt") == 0);
-}
-
-float aplicarOperador(char *op, float a, float b) {
-    switch (op[0]) {
-        case '+': return a + b;
-        case '-': return a - b;
-        case '*': return a * b;
-        case '/': return a / b;
-        case '^': return powf(a, b);
-        default: return 0.0f;
-    }
-}
-
-float aplicarFuncao(char *func, float x) {
-    if (strcmp(func, "sen") == 0) return sinf(grausParaRadianos(x));
-    if (strcmp(func, "cos") == 0) return cosf(grausParaRadianos(x));
-    if (strcmp(func, "tg")  == 0) return tanf(grausParaRadianos(x));
-    if (strcmp(func, "log") == 0) return log10f(x);  // log de base 10
-    if (strcmp(func, "sqrt") == 0) return sqrtf(x);
-    // Versão antiga para compatibilidade
-    if (strcmp(func, "sin") == 0) return sinf(x);
-    if (strcmp(func, "tan") == 0) return tanf(x);
-    return 0.0f;
-}
-
-float getValorPosFixa(char *StrPosFixa) {
-    PilhaFloat *pilha = criarPilhaFloat();
-    char *tokens = strdup(StrPosFixa);
-    char *token = strtok(tokens, " ");
-
-    while (token) {
-        if (ehNumeroFloat(token)) {
-            empilharFloat(pilha, atof(token));
-        } else if (ehOperadorFloat(token)) {
-            float b = desempilharFloat(pilha);
-            float a = desempilharFloat(pilha);
-            float res = aplicarOperador(token, a, b);
-            empilharFloat(pilha, res);
-        } else if (ehFuncaoFloat(token)) {
-            float x = desempilharFloat(pilha);
-            float res = aplicarFuncao(token, x);
-            empilharFloat(pilha, res);
+            if (strcmp(token, "sen") == 0 || strcmp(token, "cos") == 0 || strcmp(token, "tg") == 0 || strcmp(token, "log") == 0 || strcmp(token, "raiz") == 0) {
+                 sprintf(temp, "%s(%s)", token, op2);
+            } else {
+                strcpy(op1, popStr(&pilha));
+                sprintf(temp, "(%s %s %s)", op1, token, op2);
+            }
+            pushStr(&pilha, temp);
         }
         token = strtok(NULL, " ");
     }
-
-    float resultado = desempilharFloat(pilha);
-    free(tokens);
-    free(pilha);
-    return resultado;
+    strcpy(inFixaResult, popStr(&pilha));
+    return inFixaResult;
 }
-// Calcula o valor de Str (na forma inFixa)
+
+/**
+ * Calcula o valor de uma expressão Pós-fixa.
+ */
+float getValorPosFixa(char *StrPosFixa) {
+    PilhaFloat pilha;
+    initPilhaFloat(&pilha);
+
+    char strCpy[MAX];
+    strcpy(strCpy, StrPosFixa);
+    char *token = strtok(strCpy, " ");
+
+    while (token != NULL) {
+        if (isdigit(token[0]) || (token[0] == '-' && isdigit(token[1]))) {
+            pushFloat(&pilha, atof(token));
+        } else {
+            float val2, val1;
+            val2 = popFloat(&pilha);
+
+            if (strcmp(token, "+") == 0) { val1 = popFloat(&pilha); pushFloat(&pilha, val1 + val2); }
+            else if (strcmp(token, "-") == 0) { val1 = popFloat(&pilha); pushFloat(&pilha, val1 - val2); }
+            else if (strcmp(token, "*") == 0) { val1 = popFloat(&pilha); pushFloat(&pilha, val1 * val2); }
+            else if (strcmp(token, "/") == 0) { val1 = popFloat(&pilha); pushFloat(&pilha, val1 / val2); }
+            else if (strcmp(token, "%") == 0) { val1 = popFloat(&pilha); pushFloat(&pilha, fmod(val1, val2)); }
+            else if (strcmp(token, "^") == 0) { val1 = popFloat(&pilha); pushFloat(&pilha, pow(val1, val2)); }
+            else if (strcmp(token, "log") == 0) { pushFloat(&pilha, log10(val2)); }
+            else if (strcmp(token, "raiz") == 0) { pushFloat(&pilha, sqrt(val2)); }
+            else if (strcmp(token, "sen") == 0) { double rad = val2 * M_PI / 180.0; pushFloat(&pilha, sin(rad)); }
+            else if (strcmp(token, "cos") == 0) { double rad = val2 * M_PI / 180.0; pushFloat(&pilha, cos(rad)); }
+            else if (strcmp(token, "tg") == 0) { double rad = val2 * M_PI / 180.0; pushFloat(&pilha, tan(rad)); }
+        }
+        token = strtok(NULL, " ");
+    }
+    return popFloat(&pilha);
+}
+
+/**
+ * Calcula o valor de uma expressão Infixa.
+ */
 float getValorInFixa(char *StrInFixa) {
-    char *exprPosFixa = getFormaPosFixa(StrInFixa);
-    float resultado = getValorPosFixa(exprPosFixa);
-    free(exprPosFixa);
-    return resultado;
+    char *posFixa = getFormaPosFixa(StrInFixa);
+    return getValorPosFixa(posFixa);
 }
