@@ -10,6 +10,11 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+// Converte graus para radianos
+static double toRadians(double degrees) {
+    return degrees * M_PI / 180.0;
+}
+
 void toLowerStr(char *str); // <-- Adicione esta linha aqui
 
 //==================================================================
@@ -265,66 +270,59 @@ float getValorPosFixa(char *StrPosFixa) {
     while (token != NULL) {
         if (isdigit(token[0]) || (token[0] == '-' && isdigit(token[1]))) {
             pushFloat(&pilha, atof(token));
-        } else {
-            float val2, val1;
-            if(isEmptyFloat(&pilha)) {
-                printf("ERRO: Expressao malformada. Operador '%s' sem operandos suficientes.\n", token);
-                return NAN;
-            }
-            val2 = popFloat(&pilha);
+        } else { // Se não for número, é um operador ou função
+            char tokenLower[MAX];
+            strcpy(tokenLower, token);
+            toLowerStr(tokenLower);
 
-            if (strcmp(token, "+") == 0 || strcmp(token, "-") == 0 || strcmp(token, "*") == 0 || 
-                strcmp(token, "/") == 0 || strcmp(token, "%") == 0 || strcmp(token, "^") == 0) {
-                if(isEmptyFloat(&pilha)) {
-                     printf("ERRO: Expressao malformada. Operador '%s' sem operandos suficientes.\n", token);
-                     return NAN;
+            // Funções unárias
+            if (strcmp(tokenLower, "sen") == 0 || strcmp(tokenLower, "cos") == 0 || strcmp(tokenLower, "tg") == 0 ||
+                strcmp(tokenLower, "log") == 0 || strcmp(tokenLower, "raiz") == 0) {
+
+                if (isEmptyFloat(&pilha)) {
+                    printf("ERRO: Expressao malformada. Operador '%s' sem operandos suficientes.\n", token);
+                    return NAN;
                 }
-                val1 = popFloat(&pilha);
+                float operando = popFloat(&pilha);
 
-                if (strcmp(token, "+") == 0) { pushFloat(&pilha, val1 + val2); }
-                else if (strcmp(token, "-") == 0) { pushFloat(&pilha, val1 - val2); }
-                else if (strcmp(token, "*") == 0) { pushFloat(&pilha, val1 * val2); }
-                else if (strcmp(token, "^") == 0) { pushFloat(&pilha, pow(val1, val2)); }
-                else if (strcmp(token, "/") == 0) {
-                    if (val2 == 0) { printf("ERRO: Divisao por zero.\n"); return NAN; }
-                    pushFloat(&pilha, val1 / val2);
-                } else if (strcmp(token, "%") == 0) {
-                    if ((int)val2 == 0) { printf("ERRO: Modulo por zero.\n"); return NAN; }
-                    pushFloat(&pilha, fmod(val1, val2));
+                if (strcmp(tokenLower, "sen") == 0) {
+                    pushFloat(&pilha, sin(operando * M_PI / 180.0)); // Converte para radianos
+                } else if (strcmp(tokenLower, "cos") == 0) {
+                    pushFloat(&pilha, cos(operando * M_PI / 180.0));
+                } else if (strcmp(tokenLower, "tg") == 0) {
+                    pushFloat(&pilha, tan(operando * M_PI / 180.0));
+                } else if (strcmp(tokenLower, "log") == 0) {
+                    pushFloat(&pilha, log10(operando));
+                } else if (strcmp(tokenLower, "raiz") == 0) {
+                    pushFloat(&pilha, sqrt(operando));
                 }
-            }
-            else {
-                char tokenCopia[MAX];
-                strcpy(tokenCopia, token);
-                toLowerStr(tokenCopia);
+            } else { // Operadores binários
+                if (pilha.topo < 1) {
+                    printf("ERRO: Expressao malformada. Operador '%s' sem operandos suficientes.\n", token);
+                    return NAN;
+                }
+                float op2 = popFloat(&pilha);
+                float op1 = popFloat(&pilha);
 
-if (ehOperador(tokenCopia)) {
-                    int prio = prioridade(tokenCopia);
-                    if (strcmp(tokenCopia, "sen") == 0 || strcmp(tokenCopia, "cos") == 0 || strcmp(tokenCopia, "tg") == 0 ||
-                        strcmp(tokenCopia, "log") == 0 || strcmp(tokenCopia, "raiz") == 0) {
-                        pushFloat(&pilha, log10(val2));
-                    } else if (prio == 3) { // Potência
-                        pushFloat(&pilha, pow(val1, val2));
-                    } else {
-                        // Para operadores binários, precisamos de dois operandos
-                        if (isEmptyFloat(&pilha)) {
-                            printf("ERRO: Expressao malformada. Operador '%s' sem operandos suficientes.\n", token);
-                            return NAN;
-                        }
-                        val1 = popFloat(&pilha);
-
-                        if (strcmp(tokenCopia, "+") == 0) { pushFloat(&pilha, val1 + val2); }
-                        else if (strcmp(tokenCopia, "-") == 0) { pushFloat(&pilha, val1 - val2); }
-                        else if (strcmp(tokenCopia, "*") == 0) { pushFloat(&pilha, val1 * val2); }
-                        else if (strcmp(tokenCopia, "/") == 0) {
-                            if (val2 == 0) { printf("ERRO: Divisao por zero.\n"); return NAN; }
-                            pushFloat(&pilha, val1 / val2);
-                        } else if (strcmp(tokenCopia, "%") == 0) {
-                            if ((int)val2 == 0) { printf("ERRO: Modulo por zero.\n"); return NAN; }
-                            pushFloat(&pilha, fmod(val1, val2));
-                        }
+                if (strcmp(tokenLower, "+") == 0) pushFloat(&pilha, op1 + op2);
+                else if (strcmp(tokenLower, "-") == 0) pushFloat(&pilha, op1 - op2);
+                else if (strcmp(tokenLower, "*") == 0) pushFloat(&pilha, op1 * op2);
+                else if (strcmp(tokenLower, "/") == 0) {
+                    if (op2 == 0) {
+                        printf("ERRO: Divisao por zero.\n");
+                        return NAN;
                     }
-                } else {
+                    pushFloat(&pilha, op1 / op2);
+                }
+                else if (strcmp(tokenLower, "%") == 0) {
+                    if ((int)op2 == 0) {
+                        printf("ERRO: Modulo por zero.\n");
+                        return NAN;
+                    }
+                    pushFloat(&pilha, fmod(op1, op2));
+                }
+                else if (strcmp(tokenLower, "^") == 0) pushFloat(&pilha, pow(op1, op2));
+                else {
                     printf("ERRO: Funcao ou operador desconhecido: '%s'\n", token);
                     return NAN;
                 }
