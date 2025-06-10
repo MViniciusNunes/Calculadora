@@ -36,6 +36,11 @@ int main() {
                 fgets(entrada, sizeof(entrada), stdin);
                 entrada[strcspn(entrada, "\n")] = '\0';
                 
+                // Substitui vírgula por ponto na entrada
+                for (int i = 0; entrada[i]; i++) {
+                    if (entrada[i] == ',') entrada[i] = '.';
+                }
+
                 char *posFixa = getFormaPosFixa(entrada);
                 if (posFixa == NULL) {
                     printf(">> ERRO: Nao foi possivel traduzir a expressao.\n");
@@ -62,11 +67,20 @@ int main() {
                 fgets(entrada, sizeof(entrada), stdin);
                 entrada[strcspn(entrada, "\n")] = '\0';
                 
+                // Substitui vírgula por ponto na entrada
+                for (int i = 0; entrada[i]; i++) {
+                    if (entrada[i] == ',') entrada[i] = '.';
+                }
+
                 float resultadoInfixa = getValorInFixa(entrada);
                 if (isnan(resultadoInfixa) || isinf(resultadoInfixa)) {
                     printf(">> ERRO: Nao foi possivel calcular o valor da expressao.\n");
                 } else {
-                    printf("Resultado: %f\n", resultadoInfixa);
+                    if (fabs(resultadoInfixa - (int)resultadoInfixa) < 0.00001) {
+                        printf("Resultado: %d\n", (int)resultadoInfixa);
+                    } else {
+                        printf("Resultado: %.2f\n", resultadoInfixa);
+                    }
                 }
                 break;
 
@@ -79,7 +93,11 @@ int main() {
                 if (isnan(resultadoPosfixa) || isinf(resultadoPosfixa)) {
                     printf(">> ERRO: Nao foi possivel calcular o valor da expressao.\n");
                 } else {
-                    printf("Resultado: %f\n", resultadoPosfixa);
+                    if (fabs(resultadoPosfixa - (int)resultadoPosfixa) < 0.00001) {
+                        printf("Resultado: %d\n", (int)resultadoPosfixa);
+                    } else {
+                        printf("Resultado: %.2f\n", resultadoPosfixa);
+                    }
                 }
                 break;
 

@@ -3,13 +3,14 @@
 #include <string.h>
 #include <ctype.h>
 #include <math.h>
-#include "expressao.h"
 
 #define MAX 512
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
+
+void toLowerStr(char *str); // <-- Adicione esta linha aqui
 
 //==================================================================
 // ESTRUTURAS DE PILHA
@@ -38,17 +39,37 @@ int isEmptyFloat(PilhaFloat *p) { return p->topo == -1; }
 void pushFloat(PilhaFloat *p, float val) { if (p->topo < MAX - 1) p->itens[++(p->topo)] = val; }
 float popFloat(PilhaFloat *p) { return !isEmptyFloat(p) ? p->itens[(p->topo)--] : 0.0; }
 
+// Estrutura auxiliar para armazenar expressão e prioridade
+typedef struct {
+    char expr[MAX];
+    int prioridade;
+} ExprComPrioridade;
+
+// Nova pilha para ExprComPrioridade
+typedef struct {
+    ExprComPrioridade itens[MAX];
+    int topo;
+} PilhaExpr;
+
+void initPilhaExpr(PilhaExpr *p) { p->topo = -1; }
+int isEmptyExpr(PilhaExpr *p) { return p->topo == -1; }
+void pushExpr(PilhaExpr *p, ExprComPrioridade val) { if (p->topo < MAX - 1) p->itens[++(p->topo)] = val; }
+ExprComPrioridade popExpr(PilhaExpr *p) { return p->itens[(p->topo)--]; }
 
 //==================================================================
 // FUNÇÕES AUXILIARES
 //==================================================================
 
 int prioridade(char *op) {
-    if (strcmp(op, "sen") == 0 || strcmp(op, "cos") == 0 || strcmp(op, "tg") == 0 ||
-        strcmp(op, "log") == 0 || strcmp(op, "raiz") == 0) return 4;
-    if (strcmp(op, "^") == 0) return 3;
-    if (strcmp(op, "*") == 0 || strcmp(op, "/") == 0 || strcmp(op, "%") == 0) return 2;
-    if (strcmp(op, "+") == 0 || strcmp(op, "-") == 0) return 1;
+    char opCopia[MAX];
+    strcpy(opCopia, op);
+    toLowerStr(opCopia);
+
+    if (strcmp(opCopia, "sen") == 0 || strcmp(opCopia, "cos") == 0 || strcmp(opCopia, "tg") == 0 ||
+        strcmp(opCopia, "log") == 0 || strcmp(opCopia, "raiz") == 0) return 4;
+    if (strcmp(opCopia, "^") == 0) return 3;
+    if (strcmp(opCopia, "*") == 0 || strcmp(opCopia, "/") == 0 || strcmp(opCopia, "%") == 0) return 2;
+    if (strcmp(opCopia, "+") == 0 || strcmp(opCopia, "-") == 0) return 1;
     return 0; // Para parênteses
 }
 
@@ -59,6 +80,12 @@ int ehOperador(char *token) {
            strcmp(token, "log") == 0 || strcmp(token, "sen") == 0 ||
            strcmp(token, "cos") == 0 || strcmp(token, "tg") == 0 ||
            strcmp(token, "raiz") == 0;
+}
+
+void toLowerStr(char *str) {
+    for (int i = 0; str[i]; i++) {
+        str[i] = tolower((unsigned char)str[i]);
+    }
 }
 
 //==================================================================
@@ -96,11 +123,14 @@ char *getFormaPosFixa(char *Str) {
                 token[j++] = Str[i++];
             }
             token[j] = '\0';
-            if(strcmp(token, "sen") != 0 && strcmp(token, "cos") != 0 && strcmp(token, "tg") != 0 && strcmp(token, "log") != 0 && strcmp(token, "raiz") != 0) {
+            char tokenCopia[MAX];
+            strcpy(tokenCopia, token);
+            toLowerStr(tokenCopia);
+            if(strcmp(tokenCopia, "sen") != 0 && strcmp(tokenCopia, "cos") != 0 && strcmp(tokenCopia, "tg") != 0 && strcmp(tokenCopia, "log") != 0 && strcmp(tokenCopia, "raiz") != 0) {
                 printf("ERRO: Funcao desconhecida: '%s'\n", token);
                 return NULL;
             }
-            pushStr(&pilha, token);
+            pushStr(&pilha, tokenCopia);
         } else if (Str[i] == '(') {
             token[0] = '('; token[1] = '\0';
             pushStr(&pilha, token);
@@ -153,59 +183,71 @@ char *getFormaPosFixa(char *Str) {
  */
 char *getFormaInFixa(char *StrPosFixa) {
     static char inFixaResult[MAX];
-    PilhaStr pilha;
-    initPilhaStr(&pilha);
+    PilhaExpr pilha;
+    initPilhaExpr(&pilha);
 
     char strCpy[MAX];
     strcpy(strCpy, StrPosFixa);
     char *token = strtok(strCpy, " ");
 
     while (token != NULL) {
-        // --- NOVA LÓGICA DE VALIDAÇÃO ---
-        // Verifica se o token é um número válido ou um operador conhecido.
-        if (isdigit(token[0]) || (token[0] == '-' && isdigit(token[1]))) {
-            // É um número, empilha.
-            pushStr(&pilha, token);
-        } else if (ehOperador(token)) {
-            // É um operador, processa a conversão.
-            char op2[MAX], op1[MAX], temp[MAX];
-            if (isEmptyStr(&pilha)) {
-                printf("ERRO: Expressao pos-fixa malformada. Operador '%s' sem operandos.\n", token);
-                return NULL;
-            }
-            strcpy(op2, popStr(&pilha));
+        ExprComPrioridade novo;
+        char tokenCopia[MAX];
+        strcpy(tokenCopia, token);
+        toLowerStr(tokenCopia);
 
-            if (strcmp(token, "sen") == 0 || strcmp(token, "cos") == 0 || strcmp(token, "tg") == 0 || strcmp(token, "log") == 0 || strcmp(token, "raiz") == 0) {
-                 sprintf(temp, "%s(%s)", token, op2);
+        if (isdigit(token[0]) || (token[0] == '-' && isdigit(token[1]))) {
+            snprintf(novo.expr, MAX, "%s", token);
+            novo.prioridade = 10; // prioridade máxima para operandos
+            pushExpr(&pilha, novo);
+        } else if (ehOperador(tokenCopia)) {
+            int prio = prioridade(tokenCopia);
+            if (strcmp(tokenCopia, "sen") == 0 || strcmp(tokenCopia, "cos") == 0 || strcmp(tokenCopia, "tg") == 0 ||
+                strcmp(tokenCopia, "log") == 0 || strcmp(tokenCopia, "raiz") == 0) {
+                if (isEmptyExpr(&pilha)) {
+                    printf("ERRO: Expressao pos-fixa malformada. Operador '%s' sem operandos.\n", token);
+                    return NULL;
+                }
+                ExprComPrioridade op = popExpr(&pilha);
+                snprintf(novo.expr, MAX, "%s(%s)", tokenCopia, op.expr);
+                novo.prioridade = 4; // prioridade das funções
+                pushExpr(&pilha, novo);
             } else {
-                if (isEmptyStr(&pilha)) {
+                if (pilha.topo < 1) {
                     printf("ERRO: Expressao pos-fixa malformada. Operador '%s' sem operandos suficientes.\n", token);
                     return NULL;
                 }
-                strcpy(op1, popStr(&pilha));
-                sprintf(temp, "(%s %s %s)", op1, token, op2);
+                ExprComPrioridade op2 = popExpr(&pilha);
+                ExprComPrioridade op1 = popExpr(&pilha);
+
+                // Adiciona parênteses se a prioridade do operando for menor que a do operador atual
+                char esq[MAX], dir[MAX];
+                if (op1.prioridade < prio)
+                    snprintf(esq, MAX, "(%s)", op1.expr);
+                else
+                    snprintf(esq, MAX, "%s", op1.expr);
+
+                if (op2.prioridade < prio || (prio == 3 && op2.prioridade == prio)) // para associatividade à direita do ^
+                    snprintf(dir, MAX, "(%s)", op2.expr);
+                else
+                    snprintf(dir, MAX, "%s", op2.expr);
+
+                snprintf(novo.expr, MAX, "%s %s %s", esq, tokenCopia, dir);
+                novo.prioridade = prio;
+                pushExpr(&pilha, novo);
             }
-            pushStr(&pilha, temp);
         } else {
-            // Se não for nem número nem operador, é um erro.
             printf("ERRO: Token invalido na expressao pos-fixa: '%s'\n", token);
             return NULL;
         }
         token = strtok(NULL, " ");
     }
-    
-    strcpy(inFixaResult, popStr(&pilha));
-    if(!isEmptyStr(&pilha)) {
+
+    if (pilha.topo != 0) {
         printf("ERRO: Expressao pos-fixa malformada. Sobraram operandos.\n");
         return NULL;
     }
-    
-    int len = strlen(inFixaResult);
-    if (len > 1 && inFixaResult[0] == '(' && inFixaResult[len - 1] == ')') {
-        memmove(inFixaResult, inFixaResult + 1, len - 2);
-        inFixaResult[len - 2] = '\0';
-    }
-
+    strcpy(inFixaResult, pilha.itens[0].expr);
     return inFixaResult;
 }
 
@@ -251,14 +293,41 @@ float getValorPosFixa(char *StrPosFixa) {
                     pushFloat(&pilha, fmod(val1, val2));
                 }
             }
-            else if (strcmp(token, "log") == 0) { pushFloat(&pilha, log10(val2)); }
-            else if (strcmp(token, "raiz") == 0) { pushFloat(&pilha, sqrt(val2)); }
-            else if (strcmp(token, "sen") == 0) { double rad = val2 * M_PI / 180.0; pushFloat(&pilha, sin(rad)); }
-            else if (strcmp(token, "cos") == 0) { double rad = val2 * M_PI / 180.0; pushFloat(&pilha, cos(rad)); }
-            else if (strcmp(token, "tg") == 0) { double rad = val2 * M_PI / 180.0; pushFloat(&pilha, tan(rad)); }
             else {
-                printf("ERRO: Funcao ou operador desconhecido: '%s'\n", token);
-                return NAN;
+                char tokenCopia[MAX];
+                strcpy(tokenCopia, token);
+                toLowerStr(tokenCopia);
+
+if (ehOperador(tokenCopia)) {
+                    int prio = prioridade(tokenCopia);
+                    if (strcmp(tokenCopia, "sen") == 0 || strcmp(tokenCopia, "cos") == 0 || strcmp(tokenCopia, "tg") == 0 ||
+                        strcmp(tokenCopia, "log") == 0 || strcmp(tokenCopia, "raiz") == 0) {
+                        pushFloat(&pilha, log10(val2));
+                    } else if (prio == 3) { // Potência
+                        pushFloat(&pilha, pow(val1, val2));
+                    } else {
+                        // Para operadores binários, precisamos de dois operandos
+                        if (isEmptyFloat(&pilha)) {
+                            printf("ERRO: Expressao malformada. Operador '%s' sem operandos suficientes.\n", token);
+                            return NAN;
+                        }
+                        val1 = popFloat(&pilha);
+
+                        if (strcmp(tokenCopia, "+") == 0) { pushFloat(&pilha, val1 + val2); }
+                        else if (strcmp(tokenCopia, "-") == 0) { pushFloat(&pilha, val1 - val2); }
+                        else if (strcmp(tokenCopia, "*") == 0) { pushFloat(&pilha, val1 * val2); }
+                        else if (strcmp(tokenCopia, "/") == 0) {
+                            if (val2 == 0) { printf("ERRO: Divisao por zero.\n"); return NAN; }
+                            pushFloat(&pilha, val1 / val2);
+                        } else if (strcmp(tokenCopia, "%") == 0) {
+                            if ((int)val2 == 0) { printf("ERRO: Modulo por zero.\n"); return NAN; }
+                            pushFloat(&pilha, fmod(val1, val2));
+                        }
+                    }
+                } else {
+                    printf("ERRO: Funcao ou operador desconhecido: '%s'\n", token);
+                    return NAN;
+                }
             }
         }
         token = strtok(NULL, " ");
