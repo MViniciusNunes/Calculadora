@@ -6,7 +6,8 @@
 
 int main() {
     int opcao = -1; // Inicializa com um valor inválido
-    char entrada[512];
+    char entrada[512]; // Buffer temporário para a entrada do usuário
+    Expressao minhaExpressao; // Declara uma variável do tipo Expressao
 
     while (1) {
         printf("\n==== MENU ====\n");
@@ -22,12 +23,9 @@ int main() {
         char char_extra;
         fgets(buffer, sizeof(buffer), stdin);
 
-        // Tenta ler um inteiro e verifica se há algo a mais na linha.
-        // A entrada só é válida se sscanf conseguir ler EXATAMENTE 1 item (o número).
         if (sscanf(buffer, "%d %c", &opcao, &char_extra) != 1) {
             opcao = -1; // Define como inválida se houver lixo ou se não for um número.
         }
-        
         //------------------------------------------------
 
         switch (opcao) {
@@ -40,12 +38,18 @@ int main() {
                 for (int i = 0; entrada[i]; i++) {
                     if (entrada[i] == ',') entrada[i] = '.';
                 }
+                
+                // Copia a entrada infixa para a struct
+                strcpy(minhaExpressao.inFixa, entrada);
 
-                char *posFixa = getFormaPosFixa(entrada);
-                if (posFixa == NULL) {
+                // Chama a função para obter a forma pós-fixa
+                char *posFixaResult = getFormaPosFixa(minhaExpressao.inFixa);
+                
+                if (posFixaResult == NULL) {
                     printf(">> ERRO: Nao foi possivel traduzir a expressao.\n");
                 } else {
-                    printf("Expressao pos-fixada: %s\n", posFixa);
+                    strcpy(minhaExpressao.posFixa, posFixaResult); // Guarda na struct
+                    printf("Expressao pos-fixada: %s\n", minhaExpressao.posFixa);
                 }
                 break;
 
@@ -54,11 +58,16 @@ int main() {
                 fgets(entrada, sizeof(entrada), stdin);
                 entrada[strcspn(entrada, "\n")] = '\0';
 
-                char *inFixa = getFormaInFixa(entrada);
-                if (inFixa == NULL) {
+                // Copia a entrada pós-fixa para a struct
+                strcpy(minhaExpressao.posFixa, entrada);
+
+                // Chama a função para obter a forma infixa
+                char *inFixaResult = getFormaInFixa(minhaExpressao.posFixa);
+                if (inFixaResult == NULL) {
                     printf(">> ERRO: Nao foi possivel traduzir a expressao.\n");
                 } else {
-                    printf("Expressao infixada: %s\n", inFixa);
+                    strcpy(minhaExpressao.inFixa, inFixaResult); // Guarda na struct
+                    printf("Expressao infixada: %s\n", minhaExpressao.inFixa);
                 }
                 break;
 
@@ -72,14 +81,19 @@ int main() {
                     if (entrada[i] == ',') entrada[i] = '.';
                 }
 
-                float resultadoInfixa = getValorInFixa(entrada);
-                if (isnan(resultadoInfixa) || isinf(resultadoInfixa)) {
+                // Copia a entrada infixa para a struct
+                strcpy(minhaExpressao.inFixa, entrada);
+
+                // Chama a função para calcular o valor da expressão infixa
+                minhaExpressao.Valor = getValorInFixa(minhaExpressao.inFixa); // Guarda na struct
+                
+                if (isnan(minhaExpressao.Valor) || isinf(minhaExpressao.Valor)) {
                     printf(">> ERRO: Nao foi possivel calcular o valor da expressao.\n");
                 } else {
-                    if (fabs(resultadoInfixa - (int)resultadoInfixa) < 0.00001) {
-                        printf("Resultado: %d\n", (int)resultadoInfixa);
+                    if (fabs(minhaExpressao.Valor - (int)minhaExpressao.Valor) < 0.00001) {
+                        printf("Resultado: %d\n", (int)minhaExpressao.Valor);
                     } else {
-                        printf("Resultado: %.2f\n", resultadoInfixa);
+                        printf("Resultado: %.2f\n", minhaExpressao.Valor);
                     }
                 }
                 break;
@@ -89,14 +103,19 @@ int main() {
                 fgets(entrada, sizeof(entrada), stdin);
                 entrada[strcspn(entrada, "\n")] = '\0';
 
-                float resultadoPosfixa = getValorPosFixa(entrada);
-                if (isnan(resultadoPosfixa) || isinf(resultadoPosfixa)) {
+                // Copia a entrada pós-fixa para a struct
+                strcpy(minhaExpressao.posFixa, entrada);
+
+                // Chama a função para calcular o valor da expressão pós-fixa
+                minhaExpressao.Valor = getValorPosFixa(minhaExpressao.posFixa); // Guarda na struct
+                
+                if (isnan(minhaExpressao.Valor) || isinf(minhaExpressao.Valor)) {
                     printf(">> ERRO: Nao foi possivel calcular o valor da expressao.\n");
                 } else {
-                    if (fabs(resultadoPosfixa - (int)resultadoPosfixa) < 0.00001) {
-                        printf("Resultado: %d\n", (int)resultadoPosfixa);
+                    if (fabs(minhaExpressao.Valor - (int)minhaExpressao.Valor) < 0.00001) {
+                        printf("Resultado: %d\n", (int)minhaExpressao.Valor);
                     } else {
-                        printf("Resultado: %.2f\n", resultadoPosfixa);
+                        printf("Resultado: %.2f\n", minhaExpressao.Valor);
                     }
                 }
                 break;
